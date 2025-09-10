@@ -25,9 +25,10 @@ main = do
     args <- getArgs
     case args of
       ["fpr-vs-bits"] -> main_generateFPRvsBits
+      ["fpr-vs-fpr"]  -> main_generateFPRvsFPR
       ["regression"]  -> main_regression
       _   -> do
-        putStrLn "Usage: bloomfilter-fpr-calc [fpr-vs-bits|regression]"
+        putStrLn "Usage: bloomfilter-fpr-calc [fpr-vs-bits|fpr-vs-fpr|regression]"
         exitSuccess
 
 main_regression :: IO ()
@@ -58,16 +59,19 @@ main_generateFPRvsBits = do
     writeGnuplotDataFile "fpr-vs-bits.classic"
       [ unwords [show bitsperkey, show y1, show y2]
       | (bitsperkey, _) <- xs_classic
-      | y1              <- ys_classic_calc
-      | y2              <- ys_classic_actual
+      | y1              <- ys_calc   classicBloomImpl xs_classic
+      | y2              <- ys_actual classicBloomImpl xs_classic
       ]
 
     writeGnuplotDataFile "fpr-vs-bits.blocked"
       [ unwords [show bitsperkey, show y1, show y2]
       | (bitsperkey, _) <- xs_blocked
-      | y1              <- ys_blocked_calc
-      | y2              <- ys_blocked_actual
+      | y1              <- ys_calc   blockedBloomImpl xs_blocked
+      | y2              <- ys_actual blockedBloomImpl xs_blocked
       ]
+
+    putStrLn "Now run:\ngnuplot plots/fpr-vs-bits.gnuplot"
+    putStrLn "To generate plots/fpr-vs-bits.png"
   where
     -- x axis values
     xs_classic =
@@ -82,15 +86,6 @@ main_generateFPRvsBits = do
       | bitsperkey <- [2,2.2..24]
       , g          <- mkStdGen <$> [1..9]
       ]
-
-    ys_classic_calc, ys_classic_actual,
-      ys_blocked_calc, ys_blocked_actual :: [Double]
-
-    ys_classic_calc = ys_calc classicBloomImpl xs_classic
-    ys_blocked_calc = ys_calc blockedBloomImpl xs_blocked
-
-    ys_classic_actual = ys_actual classicBloomImpl xs_classic
-    ys_blocked_actual = ys_actual blockedBloomImpl xs_blocked
 
     ys_calc :: BloomImpl b p s -> [(Double, StdGen)] -> [Double]
     ys_calc BloomImpl{..} xs =
@@ -110,21 +105,41 @@ main_generateFPRvsBits = do
             nentries = round (1000 * recip fpr_est)
             fpr      = actualFalsePositiveRate impl policy nentries g
       ]
-{-
-    -- fpr values in the range 1e-1 .. 1e-6
-    ys = [ exp (-log_fpr)
-         | log_fpr <- [2.3,2.4 .. 13.8] ]
 
-    xs_classic_calc = xs_calc classicBloomImpl
-    xs_blocked_calc = xs_calc blockedBloomImpl
-
-    xs_calc BloomImpl{..} =
-      [ bits
-      | fpr <- ys
-      , let policy = policyForFPR fpr
-            bits   = policyBits policy
+-- | Similar to main_generateFPRvsBits, but plot requested FPR vs actual FPR
+main_generateFPRvsFPR :: IO ()
+main_generateFPRvsFPR = do
+    writeGnuplotDataFile "fpr-vs-fpr.classic"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual classicBloomImpl
       ]
--}
+
+    writeGnuplotDataFile "fpr-vs-fpr.blocked"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual blockedBloomImpl
+      ]
+
+    putStrLn "Now run:\ngnuplot plots/fpr-vs-fpr.gnuplot"
+    putStrLn "To generate plots/fpr-vs-fpr.png"
+  where
+    -- fpr values in the range 1e-1 .. 1e-4
+    xs :: [(Double, StdGen)]
+    xs = [ (exp (-log_fpr), g)
+         | log_fpr <- [2.3,2.4 .. 9.2]
+         , g       <- mkStdGen <$> [1..3]
+         ]
+
+    ys_actual :: BloomImpl b p s -> [Double]
+    ys_actual impl@BloomImpl{..} =
+      withStrategy (parList rseq) -- eval in parallel
+      [ fpr_actual
+      | (fpr_req, g) <- xs
+      , let policy     = policyForFPR fpr_req
+            nentries   = round (1000 * recip fpr_req)
+            fpr_actual = actualFalsePositiveRate impl policy nentries g
+      ]
 
 actualFalsePositiveRate :: BloomImpl bloom policy size
                         -> policy -> Int -> StdGen -> Double
