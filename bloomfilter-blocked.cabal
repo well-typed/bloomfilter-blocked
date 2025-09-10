@@ -46,7 +46,10 @@ license-files:
 
 author:             Duncan Coutts, Joris Dral, Matthias Heinzel, Wen Kokke
 maintainer:         duncan@well-typed.com, joris@well-typed.com
-copyright:          (c) 2023-2025 Cardano Development Foundation
+copyright:
+  (c) 2023-2025 Cardano Development Foundation
+  (c) 2025 Well-Typed LLP
+
 category:           Data
 build-type:         Simple
 tested-with:
