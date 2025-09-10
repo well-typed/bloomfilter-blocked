@@ -1,33 +1,50 @@
 cabal-version:      3.4
 name:               bloomfilter-blocked
 version:            0.1.0.0
-synopsis:           Classic and block-style bloom filters
+synopsis:           Fast, compact Bloom filters
 description:
-  @bloomfilter-blocked@ is a Haskell library providing multiple fast and efficient
-  implementations of [bloom filters](https://en.wikipedia.org/wiki/Bloom_filter).
-  It is a full rewrite of the
-  [bloomfilter](https://hackage.haskell.org/package/bloomfilter) package,
-  originally authored by Bryan O'Sullivan <bos@serpentine.com>.
+  This library provides [Bloom filters](https://en.wikipedia.org/wiki/Bloom_filter).
+  A Bloom filter is a compact but probabilistic set-like data structure,
+  supporting fast insert and membership operations.
 
-  The library includes two implementations of bloom filters: classic, and blocked.
+  Bloom filters are probabilistic in the sense that when querying for set
+  membership, they can (with some probability) falsely report that an element
+  is present when it is not present. On the other hand it will /never/ falsely
+  report that an element is not present when in fact it is present. That is, it
+  can have false positives but not false negatives. The false positive rate
+  (FPR) can be adjusted.
 
-  * /Classic/ bloom filters, found in the "Data.BloomFilter.Classic" module: a
-    default implementation that is faithful to the canonical description of a
-    bloom filter data structure.
+  Bloom filters are compact, needing only a few /bits/ per element. For example
+  10 bits per element is enough for a false positive rate (FPR) of 1%, and 15
+  bits for 0.1%.
 
-  * /Blocked/ floom filters, found in the "Data.BloomFilter.Blocked" module: an
-    implementation that optimises the memory layout of a classic bloom filter for
-    speed (cheaper CPU cache reads), at the cost of a slightly higher FPR for the
-    same amount of assigned memory.
+  The library includes two implementations of Bloom filters:
+
+  [classic]: in "Data.BloomFilter.Classic":
+    a default implementation that is faithful to the classical description of a
+    Bloom filter data structure.
+
+  [block-structured]: in "Data.BloomFilter.Blocked":
+    a cache optimised representation that is faster, at the cost of needing a
+    few more bits per element to achieve a target FPR.
+
+  Features of the library:
+
+   * Fast. See the benchmark results.
+   * Compact. It uses optimal sized bit arrays: no bigger than necessary.
+   * Faster still: the block-structured Bloom filters are even faster, at the
+     expense of needing more bits per entry.
+   * Supports very large Bloom filters, bigger than 2^32 bits.
+   * Simple API for specifying the size of Bloom filters.
+   * Support for hash salting, for using Bloom filters with untrusted inputs.
+   * Serialisation support with format version tracking.
 
 license:            Apache-2.0
 license-files:
   LICENSE
   NOTICE
 
-author:
-  Duncan Coutts, Joris Dral, Matthias Heinzel, Wolfgang Jeltsch, Wen Kokke, and Alex Washburn
-
+author:             Duncan Coutts, Joris Dral, Matthias Heinzel, Wen Kokke
 maintainer:         duncan@well-typed.com, joris@well-typed.com
 copyright:          (c) 2023-2025 Cardano Development Foundation
 category:           Data
@@ -48,12 +65,10 @@ license-files:      xxhash/xxHash-0.8.2/LICENSE-xxHash
 source-repository head
   type:     git
   location: https://github.com/well-typed/bloomfilter-blocked
-  subdir:   bloomfilter-blocked
 
 source-repository this
   type:     git
   location: https://github.com/well-typed/bloomfilter-blocked
-  subdir:   bloomfilter-blocked
   tag:      bloomfilter-blocked-0.1.0.0
 
 common warnings
