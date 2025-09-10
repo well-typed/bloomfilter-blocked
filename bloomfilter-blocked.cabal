@@ -170,7 +170,6 @@ test-suite spell
     , bloomfilter-blocked
     , directory
 
--- this exists due to windows
 library xxhash
   import:          language, warnings
   visibility:      private
