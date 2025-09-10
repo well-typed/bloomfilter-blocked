@@ -1,7 +1,7 @@
 {-# LANGUAGE CApiFFI          #-}
 {-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE UnliftedFFITypes #-}
-module FFI (
+module Data.Digest.XXH3.FFI (
     -- * One shot
     unsafe_xxh3_64bit_withSeed_ptr,
     unsafe_xxh3_64bit_withSeed_ba,

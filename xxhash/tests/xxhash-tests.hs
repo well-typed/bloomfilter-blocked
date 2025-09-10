@@ -9,7 +9,7 @@ import           Test.Tasty (defaultMain, testGroup)
 import           Test.Tasty.HUnit (testCase, (@=?))
 import           Test.Tasty.QuickCheck (testProperty, (===))
 
-import           XXH3
+import           Data.Digest.XXH3
 
 main :: IO ()
 main = defaultMain $ testGroup "xxhash"

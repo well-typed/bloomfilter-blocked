@@ -23,9 +23,9 @@ import           Control.Monad.ST (ST, runST)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Char (ord)
+import qualified Data.Digest.XXH3 as XXH3
 import qualified Data.Primitive.ByteArray as P
 import           Data.Word (Word32, Word64)
-import qualified XXH3
 
 -- | A hash value is 64 bits wide.
 type Hash = Word64

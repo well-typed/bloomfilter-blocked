@@ -178,14 +178,14 @@ library xxhash
     HsXXHash.h
     xxhash.h
 
-  exposed-modules: XXH3
+  exposed-modules: Data.Digest.XXH3
 
   if (arch(x86_64) && !os(osx))
     -- Cabal doesn't pass cc-options to "ordinary" Haskell source compilation
     -- https://github.com/haskell/cabal/issues/9801
     ghc-options: -optc=-mavx2 -optc=-O3
 
-  other-modules:   FFI
+  other-modules:   Data.Digest.XXH3.FFI
   hs-source-dirs:  xxhash/src
   build-depends:
     , base        <5
