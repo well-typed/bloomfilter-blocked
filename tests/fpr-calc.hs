@@ -24,15 +24,15 @@ main = do
 
     args <- getArgs
     case args of
-      ["Generate"] -> main_generateData
-      ["Regression"] -> main_regression
+      ["fpr-vs-bits"] -> main_generateFPRvsBits
+      ["regression"]  -> main_regression
       _   -> do
-        putStrLn "Usage: fpr-calc [Generate|Regression]"
+        putStrLn "Usage: bloomfilter-fpr-calc [fpr-vs-bits|regression]"
         exitSuccess
 
 main_regression :: IO ()
 main_regression = do
-    s <- readFile "plots/fpr.blocked.gnuplot.data"
+    s <- readFile "plots/fpr-vs-bits.blocked.gnuplot.data"
     let parseLine l = case words l of
           [w_xs_blocked, _, w_ys_blocked_actual] ->
             ( read w_xs_blocked, read w_ys_blocked_actual )
@@ -53,27 +53,21 @@ main_regression = do
     putStrLn "FPR independent, bits dependent:"
     print regressionFPRToBits
 
-main_generateData :: IO ()
-main_generateData = do
-    withFile "plots/fpr.classic.gnuplot.data" WriteMode $ \h -> do
-      hSetBuffering h LineBuffering --for incremental output
-      mapM_ (\l -> hPutStrLn h l >> putChar '.') $
-        [ unwords [show bitsperkey, show y1, show y2]
-        | (bitsperkey, _) <- xs_classic
-        | y1              <- ys_classic_calc
-        | y2              <- ys_classic_actual
-        ]
-    putStrLn "Wrote plots/fpr.classic.gnuplot.data"
+main_generateFPRvsBits :: IO ()
+main_generateFPRvsBits = do
+    writeGnuplotDataFile "fpr-vs-bits.classic"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_classic
+      | y1              <- ys_classic_calc
+      | y2              <- ys_classic_actual
+      ]
 
-    withFile "plots/fpr.blocked.gnuplot.data" WriteMode $ \h -> do
-      hSetBuffering h LineBuffering --for incremental output
-      mapM_ (\l -> hPutStrLn h l >> putChar '.') $
-        [ unwords [show bitsperkey, show y1, show y2]
-        | (bitsperkey, _) <- xs_blocked
-        | y1              <- ys_blocked_calc
-        | y2              <- ys_blocked_actual
-        ]
-    putStrLn "Wrote plots/fpr.blocked.gnuplot.data"
+    writeGnuplotDataFile "fpr-vs-bits.blocked"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_blocked
+      | y1              <- ys_blocked_calc
+      | y2              <- ys_blocked_actual
+      ]
   where
     -- x axis values
     xs_classic =
@@ -171,6 +165,17 @@ countFalsePositives BloomImpl{..} policy n g0 =
       | otherwise = Just (x, (g', i+1))
         where
           (!x, !g') = uniform g
+
+writeGnuplotDataFile :: FilePath -> [String] -> IO ()
+writeGnuplotDataFile name datalines = do
+    withFile filename WriteMode $ \h -> do
+      hSetBuffering h LineBuffering --for incremental output
+      putStrLn ("Writing " ++ filename ++ " ...")
+      mapM_ (\l -> hPutStrLn h l >> putChar '.') datalines
+    putStrLn "Done"
+  where
+    filename = "plots/" ++ name ++ ".gnuplot.data"
+
 
 data BloomImpl bloom policy size = BloomImpl {
        policyForBits :: B.BitsPerEntry -> policy,
