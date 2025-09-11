@@ -145,6 +145,7 @@ benchmark bench
     , base
     , bloomfilter-blocked
     , criterion
+    , deepseq
     , random
 
 -- It's not really a test suite, but if we make it an executable then its
