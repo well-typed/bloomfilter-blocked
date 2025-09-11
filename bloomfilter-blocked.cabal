@@ -144,6 +144,7 @@ benchmark bench
   build-depends:
     , base
     , bloomfilter-blocked
+    , bytestring
     , criterion
     , deepseq
     , random
