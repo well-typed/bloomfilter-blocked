@@ -1,15 +1,29 @@
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE PackageImports   #-}
 {-# LANGUAGE ParallelListComp #-}
 module Main (main) where
 
-import qualified Data.BloomFilter as B (BitsPerEntry, FPR, Hashable, Salt)
-import qualified Data.BloomFilter.Blocked as B.Blocked
-import qualified Data.BloomFilter.Classic as B.Classic
+-- From this package.
+import qualified "bloomfilter-blocked" Data.BloomFilter as B (BitsPerEntry, FPR,
+                     Hashable, Salt)
+import qualified "bloomfilter-blocked" Data.BloomFilter.Blocked as B.Blocked
+import qualified "bloomfilter-blocked" Data.BloomFilter.Classic as B.Classic
+
+#ifdef ORIGINAL_BLOOMFILTER
+-- From the original bloomfilter package.
+import qualified "bloomfilter" Data.BloomFilter as B.Original
+import qualified "bloomfilter" Data.BloomFilter.Easy as B.Original
+import qualified "bloomfilter" Data.BloomFilter.Hash as B.Original
+#endif
 
 import           Control.Parallel.Strategies
 import           Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import           Data.List (unfoldr)
 import           Math.Regression.Simple
+#ifdef ORIGINAL_BLOOMFILTER
+import           Numeric
+#endif
 import           System.Environment (getArgs)
 import           System.Exit (exitSuccess)
 import           System.IO
@@ -70,6 +84,15 @@ main_generateFPRvsBits = do
       | y2              <- ys_actual blockedBloomImpl xs_blocked
       ]
 
+#ifdef ORIGINAL_BLOOMFILTER
+    writeGnuplotDataFile "fpr-vs-bits.original"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_original
+      | y1              <- ys_calc   originalBloomImpl xs_original
+      | y2              <- ys_actual originalBloomImpl xs_original
+      ]
+#endif
+
     putStrLn "Now run:\ngnuplot plots/fpr-vs-bits.gnuplot"
     putStrLn "To generate plots/fpr-vs-bits.png"
   where
@@ -86,6 +109,15 @@ main_generateFPRvsBits = do
       | bitsperkey <- [2,2.2..24]
       , g          <- mkStdGen <$> [1..9]
       ]
+
+#ifdef ORIGINAL_BLOOMFILTER
+    xs_original =
+      [ (bitsperkey, g)
+      | bitsperkey <- [2,2.1..20]
+      , g          <- mkStdGen <$> [1..2]
+      ]
+      -- We use fewer points for classic, as it's slower and there's less need.
+#endif
 
     ys_calc :: BloomImpl b p s Int -> [(Double, StdGen)] -> [Double]
     ys_calc BloomImpl{..} xs =
@@ -121,6 +153,13 @@ main_generateFPRvsFPR = do
       | fpr_actual   <- ys_actual blockedBloomImpl
       ]
 
+#ifdef ORIGINAL_BLOOMFILTER
+    writeGnuplotDataFile "fpr-vs-fpr.original"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual originalBloomImpl
+      ]
+#endif
     putStrLn "Now run:\ngnuplot plots/fpr-vs-fpr.gnuplot"
     putStrLn "To generate plots/fpr-vs-fpr.png"
   where
@@ -230,3 +269,43 @@ blockedBloomImpl =
        unfold        = B.Blocked.unfold,
        elem          = B.Blocked.elem
     }
+
+#ifdef ORIGINAL_BLOOMFILTER
+originalBloomImpl :: B.Original.Hashable a
+                  => BloomImpl B.Original.Bloom
+                               OriginalBloomPolicy OriginalBloomSize a
+originalBloomImpl =
+    BloomImpl {
+       policyForBits = OriginalBloomPolicyBits,
+       policyForFPR  = OriginalBloomPolicyFPR,
+       policyBits    = error "originalBloomImpl.policyBits",
+       policyFPR,
+       sizeForPolicy,
+       unfold,
+       elem          = B.Original.elem
+    }
+  where
+    policyFPR (OriginalBloomPolicyFPR fpr) = fpr
+    policyFPR (OriginalBloomPolicyBits bits) =
+        let hashes = fromIntegral (round (bits * log 2) :: Int)
+         in negate (expm1 (negate (hashes / bits))) ** hashes
+
+    sizeForPolicy (OriginalBloomPolicyFPR fpr) nelements =
+        let (bits, hashes) = B.Original.suggestSizing nelements fpr
+        in OriginalBloomSize bits hashes
+
+    sizeForPolicy (OriginalBloomPolicyBits bits) nelements =
+        let hashes = round (bits * log 2)
+        in OriginalBloomSize (ceiling (bits * fromIntegral nelements)) hashes
+
+    unfold (OriginalBloomSize bits hashes) _salt =
+        B.Original.unfold (B.Original.cheapHashes hashes) bits
+
+
+data OriginalBloomPolicy = OriginalBloomPolicyFPR  !B.BitsPerEntry
+                         | OriginalBloomPolicyBits !B.FPR
+  deriving stock Show
+
+data OriginalBloomSize   = OriginalBloomSize !Int !Int -- bits and hashes
+  deriving stock Show
+#endif
