@@ -157,7 +157,7 @@ test-suite fpr-calc
     , random
     , regression-simple
 
-  ghc-options:    -threaded
+  ghc-options:    -threaded -rtsopts
 
 -- It's not really a test suite, but if we make it an executable then its
 -- dependencies will be included for dependency resolution when building the
