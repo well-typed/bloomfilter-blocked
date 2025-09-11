@@ -87,7 +87,7 @@ main_generateFPRvsBits = do
       , g          <- mkStdGen <$> [1..9]
       ]
 
-    ys_calc :: BloomImpl b p s -> [(Double, StdGen)] -> [Double]
+    ys_calc :: BloomImpl b p s Int -> [(Double, StdGen)] -> [Double]
     ys_calc BloomImpl{..} xs =
       [ fpr
       | (bitsperkey, _) <- xs
@@ -95,7 +95,7 @@ main_generateFPRvsBits = do
             fpr    = policyFPR policy
       ]
 
-    ys_actual :: BloomImpl b p s -> [(Double, StdGen)] -> [Double]
+    ys_actual :: BloomImpl b p s Int -> [(Double, StdGen)] -> [Double]
     ys_actual impl@BloomImpl{..} xs =
       withStrategy (parList rseq) -- eval in parallel
       [ fpr
@@ -131,7 +131,7 @@ main_generateFPRvsFPR = do
          , g       <- mkStdGen <$> [1..3]
          ]
 
-    ys_actual :: BloomImpl b p s -> [Double]
+    ys_actual :: BloomImpl b p s Int -> [Double]
     ys_actual impl@BloomImpl{..} =
       withStrategy (parList rseq) -- eval in parallel
       [ fpr_actual
@@ -141,13 +141,14 @@ main_generateFPRvsFPR = do
             fpr_actual = actualFalsePositiveRate impl policy nentries g
       ]
 
-actualFalsePositiveRate :: BloomImpl bloom policy size
+actualFalsePositiveRate :: BloomImpl bloom policy size Int
                         -> policy -> Int -> StdGen -> Double
 actualFalsePositiveRate bloomimpl policy n g0 =
     fromIntegral (countFalsePositives bloomimpl policy n g0)
   / fromIntegral n
 
-countFalsePositives :: forall bloom policy size. BloomImpl bloom policy size
+countFalsePositives :: forall bloom policy size.
+                       BloomImpl bloom policy size Int
                     -> policy -> Int -> StdGen -> Int
 countFalsePositives BloomImpl{..} policy n g0 =
     let (!g01, !g02) = splitGen g0
@@ -192,18 +193,19 @@ writeGnuplotDataFile name datalines = do
     filename = "plots/" ++ name ++ ".gnuplot.data"
 
 
-data BloomImpl bloom policy size = BloomImpl {
+data BloomImpl bloom policy size a = BloomImpl {
        policyForBits :: B.BitsPerEntry -> policy,
        policyForFPR  :: B.FPR          -> policy,
        policyBits    :: policy -> B.BitsPerEntry,
        policyFPR     :: policy -> B.FPR,
        sizeForPolicy :: policy -> Int -> size,
-       unfold        :: forall a b. B.Hashable a
-                     => size -> B.Salt -> (b -> Maybe (a, b)) -> b -> bloom a,
-       elem          :: forall a. B.Hashable a => a -> bloom a -> Bool
+       unfold        :: forall b. size -> B.Salt -> (b -> Maybe (a, b)) -> b -> bloom a,
+       elem          :: a -> bloom a -> Bool
      }
 
-classicBloomImpl :: BloomImpl B.Classic.Bloom B.Classic.BloomPolicy B.Classic.BloomSize
+classicBloomImpl :: B.Hashable a
+                 => BloomImpl B.Classic.Bloom
+                              B.Classic.BloomPolicy B.Classic.BloomSize a
 classicBloomImpl =
     BloomImpl {
        policyForBits = B.Classic.policyForBits,
@@ -215,7 +217,9 @@ classicBloomImpl =
        elem          = B.Classic.elem
     }
 
-blockedBloomImpl :: BloomImpl B.Blocked.Bloom B.Blocked.BloomPolicy B.Blocked.BloomSize
+blockedBloomImpl :: B.Hashable a
+                 => BloomImpl B.Blocked.Bloom
+                              B.Blocked.BloomPolicy B.Blocked.BloomSize a
 blockedBloomImpl =
     BloomImpl {
        policyForBits = B.Blocked.policyForBits,
