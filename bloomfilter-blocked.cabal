@@ -176,6 +176,19 @@ test-suite fpr-calc
     build-depends: bloomfilter >=2.0 && <2.1
     cpp-options:   -DORIGINAL_BLOOMFILTER
 
+benchmark bench-plot
+  import:         language, warnings
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: bench
+  main-is:        bench-plot.hs
+  build-depends:
+    , aeson       >=2.0
+    , base        <5
+    , bytestring
+    , scientific
+    , text
+    , vector
+
 -- It's not really a test suite, but if we make it an executable then its
 -- dependencies will be included for dependency resolution when building the
 -- main library. As a test-suite, it's more accurately represented as an
