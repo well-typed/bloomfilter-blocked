@@ -149,6 +149,10 @@ benchmark bench
     , deepseq
     , random
 
+  if flag(bench-vs-original-bloomfilter)
+    build-depends: bloomfilter >=2.0 && <2.1
+    cpp-options:   -DORIGINAL_BLOOMFILTER
+
 -- It's not really a test suite, but if we make it an executable then its
 -- dependencies will be included for dependency resolution when building the
 -- main library. As a test-suite, it's more accurately represented as an
