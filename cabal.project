@@ -1,0 +1,12 @@
+index-state:
+  -- Bump this if you need newer packages from Hackage
+  -- current date: create cabal.project file
+  , hackage.haskell.org 2025-09-15T11:44:03Z
+
+packages: .
+
+tests: True
+benchmarks: True
+
+-- regression-simple is used by the bloomfilter-fpr-calc test executable
+allow-newer: regression-simple:base
