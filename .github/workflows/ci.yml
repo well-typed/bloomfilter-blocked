@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - "main"
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Set the default shell on all platforms.
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  ################################################################################
+  # Build
+  ################################################################################
+  build:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      # Picking matrix combinations is tricky as it's a trade-off: on the one
+      # hand we want to test as many interesting combinations as possible, but
+      # on the other hand we don't want combinatorial explosion. We strike a
+      # balance as follows:
+      #
+      # * Build and test with all combinations of GHC on Linux.
+      #
+      # * Build and test with the oldest/newest GHC on Windows/MacOS.
+      #
+      # We don't expect major differences between MacOS, Windows, and Ubuntu, so
+      # we can probably afford to run on Ubuntu more extensively.
+      matrix:
+        os: ["ubuntu-latest"]
+        ghc-version: ["9.2", "9.4", "9.6", "9.8", "9.10", "9.12"]
+        cabal-version: ["3.12"]
+        include:
+        - os: "macOS-latest"
+          ghc-version: "9.2"
+          cabal-version: "3.12"
+        - os: "macOS-latest"
+          ghc-version: "9.12"
+          cabal-version: "3.12"
+        - os: "windows-latest"
+          ghc-version: "9.2"
+          cabal-version: "3.12"
+        - os: "windows-latest"
+          ghc-version: "9.12"
+          cabal-version: "3.12"
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v5
+
+    - name: 🛠️ Setup Haskell
+      id: setup-haskell
+      uses:  haskell-actions/setup@v2
+      with:
+        ghc-version: ${{ matrix.ghc-version }}
+        cabal-version: ${{ matrix.cabal-version }}
+
+    - name: 🛠️ Configure
+      run: |
+        cabal configure \
+          --enable-tests \
+          --enable-benchmarks \
+          --disable-documentation \
+          --ghc-options="-Werror"
+        cat "cabal.project.local"
+
+    - name: 💾 Generate Cabal plan
+      run: |
+        cabal build all --dry-run
+
+    - name: 💾 Restore Cabal dependencies
+      uses: actions/cache/restore@v4
+      id: cache-cabal
+      env:
+        key: build-${{ runner.os }}-ghc-${{ steps.setup-haskell.outputs.ghc-version }}-cabal-${{ steps.setup-haskell.outputs.cabal-version }}
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: ${{ env.key }}-plan-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+        restore-keys: ${{ env.key }}-
+
+    - name: 🛠️ Build Cabal dependencies
+      run: |
+        cabal build all --only-dependencies
+
+    - name: 💾 Save Cabal dependencies
+      uses: actions/cache/save@v4
+      if: ${{ steps.cache-cabal.outputs.cache-hit != 'true' }}
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: ${{ steps.cache-cabal.outputs.cache-primary-key }}
+
+    - name: 🏗️ Build
+      run: |
+        cabal build all
+
+    - name: 🧪 Test
+      id: test
+      run: |
+        cabal test all \
+          -j1 \
+          --test-show-details=direct
+      env:
+        TASTY_TIMEOUT: "5m"
+
+    - name: 🛠️ Setup cabal-docspec (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      uses: intersectMBO/lsm-tree/.github/actions/setup-cabal-docspec@main
+
+    - name: 🧪 Test with cabal-docspec (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: ./scripts/test-cabal-docspec.sh
+      env:
+        SKIP_CABAL_BUILD: true
+
+  ################################################################################
+  # Lint with cabal-fmt
+  ################################################################################
+  lint-cabal-fmt:
+    name: Lint with cabal-fmt
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v5
+
+    - name: 🛠️ Setup cabal-fmt
+      uses: intersectMBO/lsm-tree/.github/actions/setup-cabal-fmt@main
+      with:
+        cabal-fmt-version: "0.1.12"
+        ghc-version: "9.6"
+        cabal-version: "3.12"
+        # The index-state is fixed to enable caching and ensure that the version
+        # regardless of the current state of Hackage head.
+        # If you want a newer version of cabal-fmt, use a more recent time.
+        hackage-index-state: "2025-09-15T11:44:03Z"
+
+    - name: 🎗️ Lint with cabal-fmt
+      run: ./scripts/format-cabal-fmt.sh && git diff --exit-code
+
+  ################################################################################
+  # Lint with cabal
+  ################################################################################
+  lint-cabal:
+    name: Lint with cabal
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v5
+
+    - name: 🛠️ Setup Haskell
+      id: setup-haskell
+      uses:  haskell-actions/setup@v2
+      with:
+        ghc-version: "9.6"
+        cabal-version: "3.12"
+        cabal-update: false
+
+    - name: 🎗️ Lint with cabal
+      run: ./scripts/lint-cabal.sh
+
+  ################################################################################
+  # Lint with stylish-haskell
+  ################################################################################
+  lint-stylish-haskell:
+    name: Lint with stylish-haskell
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v5
+
+    - name: 🛠️ Setup stylish-haskell
+      uses: intersectMBO/lsm-tree/.github/actions/setup-stylish-haskell@main
+      with:
+        stylish-haskell-version: "0.15.1.0"
+        ghc-version: "9.10"
+        cabal-version: "3.12"
+        # The index-state is fixed to enable caching and ensure that the version
+        # regardless of the current state of Hackage head.
+        # If you want a newer version of stylish-haskell, use a more recent time.
+        hackage-index-state: "2025-09-15T11:44:03Z"
+
+    - name: 🎗️ Lint with stylish-haskell
+      run: ./scripts/format-stylish-haskell.sh && git diff --exit-code

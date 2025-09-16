@@ -1,5 +1,9 @@
 # bloomfilter-blocked
 
+[![Hackage](https://img.shields.io/hackage/v/bloomfilter-blocked?label=Hackage:%20bloomfilter-blocked)](https://hackage.haskell.org/package/bloomfilter-blocked)
+[![Build](https://img.shields.io/github/actions/workflow/status/well-typed/bloomfilter-blocked/ci.yml?label=Build)](https://github.com/well-typed/bloomfilter-blocked/actions/workflows/ci.yml)
+[![Haddocks](https://img.shields.io/badge/documentation-Haddocks-purple)](https://well-typed.github.io/bloomfilter-blocked/)
+
 `bloomfilter-blocked` is a Haskell library providing multiple fast and efficient
 implementations of [bloom filters](https://en.wikipedia.org/wiki/Bloom_filter).
 It is a full rewrite of the
