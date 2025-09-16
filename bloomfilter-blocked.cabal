@@ -47,12 +47,12 @@ license-files:      xxhash/xxHash-0.8.2/LICENSE-xxHash
 
 source-repository head
   type:     git
-  location: https://github.com/IntersectMBO/lsm-tree
+  location: https://github.com/well-typed/bloomfilter-blocked
   subdir:   bloomfilter-blocked
 
 source-repository this
   type:     git
-  location: https://github.com/IntersectMBO/lsm-tree
+  location: https://github.com/well-typed/bloomfilter-blocked
   subdir:   bloomfilter-blocked
   tag:      bloomfilter-blocked-0.1.0.0
 
