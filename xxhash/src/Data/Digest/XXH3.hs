@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP       #-}
 {-# LANGUAGE MagicHash #-}
 
-module XXH3 (
+module Data.Digest.XXH3 (
     -- * One shot
     xxh3_64bit_withSeed_bs,
     xxh3_64bit_withSeed_ba,
@@ -29,7 +29,7 @@ import           Foreign.ForeignPtr
 import           GHC.Exts (MutableByteArray#)
 import           GHC.ForeignPtr
 
-import           FFI
+import           Data.Digest.XXH3.FFI
 
 {-# INLINE withFP #-}
 withFP :: ForeignPtr a -> (P.Ptr a -> IO b) -> IO b

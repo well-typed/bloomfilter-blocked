@@ -27,12 +27,12 @@ main = do
       ["Generate"] -> main_generateData
       ["Regression"] -> main_regression
       _   -> do
-        putStrLn "Usage: bloomfilter-fpr-calc [Generate|Regression]"
+        putStrLn "Usage: fpr-calc [Generate|Regression]"
         exitSuccess
 
 main_regression :: IO ()
 main_regression = do
-    s <- readFile "bloomfilter/fpr.blocked.gnuplot.data"
+    s <- readFile "plots/fpr.blocked.gnuplot.data"
     let parseLine l = case words l of
           [w_xs_blocked, _, w_ys_blocked_actual] ->
             ( read w_xs_blocked, read w_ys_blocked_actual )
@@ -55,7 +55,7 @@ main_regression = do
 
 main_generateData :: IO ()
 main_generateData = do
-    withFile "bloomfilter/fpr.classic.gnuplot.data" WriteMode $ \h -> do
+    withFile "plots/fpr.classic.gnuplot.data" WriteMode $ \h -> do
       hSetBuffering h LineBuffering --for incremental output
       mapM_ (\l -> hPutStrLn h l >> putChar '.') $
         [ unwords [show bitsperkey, show y1, show y2]
@@ -63,9 +63,9 @@ main_generateData = do
         | y1              <- ys_classic_calc
         | y2              <- ys_classic_actual
         ]
-    putStrLn "Wrote bloomfilter/fpr.classic.gnuplot.data"
+    putStrLn "Wrote plots/fpr.classic.gnuplot.data"
 
-    withFile "bloomfilter/fpr.blocked.gnuplot.data" WriteMode $ \h -> do
+    withFile "plots/fpr.blocked.gnuplot.data" WriteMode $ \h -> do
       hSetBuffering h LineBuffering --for incremental output
       mapM_ (\l -> hPutStrLn h l >> putChar '.') $
         [ unwords [show bitsperkey, show y1, show y2]
@@ -73,7 +73,7 @@ main_generateData = do
         | y1              <- ys_blocked_calc
         | y2              <- ys_blocked_actual
         ]
-    putStrLn "Wrote bloomfilter/fpr.blocked.gnuplot.data"
+    putStrLn "Wrote plots/fpr.blocked.gnuplot.data"
   where
     -- x axis values
     xs_classic =
