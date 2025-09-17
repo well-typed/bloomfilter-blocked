@@ -1,15 +1,29 @@
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE PackageImports   #-}
 {-# LANGUAGE ParallelListComp #-}
 module Main (main) where
 
-import qualified Data.BloomFilter as B (BitsPerEntry, FPR, Hashable, Salt)
-import qualified Data.BloomFilter.Blocked as B.Blocked
-import qualified Data.BloomFilter.Classic as B.Classic
+-- From this package.
+import qualified "bloomfilter-blocked" Data.BloomFilter as B (BitsPerEntry, FPR,
+                     Hashable, Salt)
+import qualified "bloomfilter-blocked" Data.BloomFilter.Blocked as B.Blocked
+import qualified "bloomfilter-blocked" Data.BloomFilter.Classic as B.Classic
+
+#ifdef ORIGINAL_BLOOMFILTER
+-- From the original bloomfilter package.
+import qualified "bloomfilter" Data.BloomFilter as B.Original
+import qualified "bloomfilter" Data.BloomFilter.Easy as B.Original
+import qualified "bloomfilter" Data.BloomFilter.Hash as B.Original
+#endif
 
 import           Control.Parallel.Strategies
 import           Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import           Data.List (unfoldr)
 import           Math.Regression.Simple
+#ifdef ORIGINAL_BLOOMFILTER
+import           Numeric
+#endif
 import           System.Environment (getArgs)
 import           System.Exit (exitSuccess)
 import           System.IO
@@ -24,15 +38,16 @@ main = do
 
     args <- getArgs
     case args of
-      ["Generate"] -> main_generateData
-      ["Regression"] -> main_regression
+      ["fpr-vs-bits"] -> main_generateFPRvsBits
+      ["fpr-vs-fpr"]  -> main_generateFPRvsFPR
+      ["regression"]  -> main_regression
       _   -> do
-        putStrLn "Usage: fpr-calc [Generate|Regression]"
+        putStrLn "Usage: bloomfilter-fpr-calc [fpr-vs-bits|fpr-vs-fpr|regression]"
         exitSuccess
 
 main_regression :: IO ()
 main_regression = do
-    s <- readFile "plots/fpr.blocked.gnuplot.data"
+    s <- readFile "plots/fpr-vs-bits.blocked.gnuplot.data"
     let parseLine l = case words l of
           [w_xs_blocked, _, w_ys_blocked_actual] ->
             ( read w_xs_blocked, read w_ys_blocked_actual )
@@ -53,27 +68,33 @@ main_regression = do
     putStrLn "FPR independent, bits dependent:"
     print regressionFPRToBits
 
-main_generateData :: IO ()
-main_generateData = do
-    withFile "plots/fpr.classic.gnuplot.data" WriteMode $ \h -> do
-      hSetBuffering h LineBuffering --for incremental output
-      mapM_ (\l -> hPutStrLn h l >> putChar '.') $
-        [ unwords [show bitsperkey, show y1, show y2]
-        | (bitsperkey, _) <- xs_classic
-        | y1              <- ys_classic_calc
-        | y2              <- ys_classic_actual
-        ]
-    putStrLn "Wrote plots/fpr.classic.gnuplot.data"
+main_generateFPRvsBits :: IO ()
+main_generateFPRvsBits = do
+    writeGnuplotDataFile "fpr-vs-bits.classic"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_classic
+      | y1              <- ys_calc   classicBloomImpl xs_classic
+      | y2              <- ys_actual classicBloomImpl xs_classic
+      ]
 
-    withFile "plots/fpr.blocked.gnuplot.data" WriteMode $ \h -> do
-      hSetBuffering h LineBuffering --for incremental output
-      mapM_ (\l -> hPutStrLn h l >> putChar '.') $
-        [ unwords [show bitsperkey, show y1, show y2]
-        | (bitsperkey, _) <- xs_blocked
-        | y1              <- ys_blocked_calc
-        | y2              <- ys_blocked_actual
-        ]
-    putStrLn "Wrote plots/fpr.blocked.gnuplot.data"
+    writeGnuplotDataFile "fpr-vs-bits.blocked"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_blocked
+      | y1              <- ys_calc   blockedBloomImpl xs_blocked
+      | y2              <- ys_actual blockedBloomImpl xs_blocked
+      ]
+
+#ifdef ORIGINAL_BLOOMFILTER
+    writeGnuplotDataFile "fpr-vs-bits.original"
+      [ unwords [show bitsperkey, show y1, show y2]
+      | (bitsperkey, _) <- xs_original
+      | y1              <- ys_calc   originalBloomImpl xs_original
+      | y2              <- ys_actual originalBloomImpl xs_original
+      ]
+#endif
+
+    putStrLn "Now run:\ngnuplot plots/fpr-vs-bits.gnuplot"
+    putStrLn "To generate plots/fpr-vs-bits.png"
   where
     -- x axis values
     xs_classic =
@@ -89,16 +110,16 @@ main_generateData = do
       , g          <- mkStdGen <$> [1..9]
       ]
 
-    ys_classic_calc, ys_classic_actual,
-      ys_blocked_calc, ys_blocked_actual :: [Double]
+#ifdef ORIGINAL_BLOOMFILTER
+    xs_original =
+      [ (bitsperkey, g)
+      | bitsperkey <- [2,2.1..20]
+      , g          <- mkStdGen <$> [1..2]
+      ]
+      -- We use fewer points for classic, as it's slower and there's less need.
+#endif
 
-    ys_classic_calc = ys_calc classicBloomImpl xs_classic
-    ys_blocked_calc = ys_calc blockedBloomImpl xs_blocked
-
-    ys_classic_actual = ys_actual classicBloomImpl xs_classic
-    ys_blocked_actual = ys_actual blockedBloomImpl xs_blocked
-
-    ys_calc :: BloomImpl b p s -> [(Double, StdGen)] -> [Double]
+    ys_calc :: BloomImpl b p s Int -> [(Double, StdGen)] -> [Double]
     ys_calc BloomImpl{..} xs =
       [ fpr
       | (bitsperkey, _) <- xs
@@ -106,7 +127,7 @@ main_generateData = do
             fpr    = policyFPR policy
       ]
 
-    ys_actual :: BloomImpl b p s -> [(Double, StdGen)] -> [Double]
+    ys_actual :: BloomImpl b p s Int -> [(Double, StdGen)] -> [Double]
     ys_actual impl@BloomImpl{..} xs =
       withStrategy (parList rseq) -- eval in parallel
       [ fpr
@@ -116,29 +137,57 @@ main_generateData = do
             nentries = round (1000 * recip fpr_est)
             fpr      = actualFalsePositiveRate impl policy nentries g
       ]
-{-
-    -- fpr values in the range 1e-1 .. 1e-6
-    ys = [ exp (-log_fpr)
-         | log_fpr <- [2.3,2.4 .. 13.8] ]
 
-    xs_classic_calc = xs_calc classicBloomImpl
-    xs_blocked_calc = xs_calc blockedBloomImpl
-
-    xs_calc BloomImpl{..} =
-      [ bits
-      | fpr <- ys
-      , let policy = policyForFPR fpr
-            bits   = policyBits policy
+-- | Similar to main_generateFPRvsBits, but plot requested FPR vs actual FPR
+main_generateFPRvsFPR :: IO ()
+main_generateFPRvsFPR = do
+    writeGnuplotDataFile "fpr-vs-fpr.classic"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual classicBloomImpl
       ]
--}
 
-actualFalsePositiveRate :: BloomImpl bloom policy size
+    writeGnuplotDataFile "fpr-vs-fpr.blocked"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual blockedBloomImpl
+      ]
+
+#ifdef ORIGINAL_BLOOMFILTER
+    writeGnuplotDataFile "fpr-vs-fpr.original"
+      [ unwords [show fpr_req, show fpr_actual]
+      | (fpr_req, _) <- xs
+      | fpr_actual   <- ys_actual originalBloomImpl
+      ]
+#endif
+    putStrLn "Now run:\ngnuplot plots/fpr-vs-fpr.gnuplot"
+    putStrLn "To generate plots/fpr-vs-fpr.png"
+  where
+    -- fpr values in the range 1e-1 .. 1e-4
+    xs :: [(Double, StdGen)]
+    xs = [ (exp (-log_fpr), g)
+         | log_fpr <- [2.3,2.4 .. 9.2]
+         , g       <- mkStdGen <$> [1..3]
+         ]
+
+    ys_actual :: BloomImpl b p s Int -> [Double]
+    ys_actual impl@BloomImpl{..} =
+      withStrategy (parList rseq) -- eval in parallel
+      [ fpr_actual
+      | (fpr_req, g) <- xs
+      , let policy     = policyForFPR fpr_req
+            nentries   = round (1000 * recip fpr_req)
+            fpr_actual = actualFalsePositiveRate impl policy nentries g
+      ]
+
+actualFalsePositiveRate :: BloomImpl bloom policy size Int
                         -> policy -> Int -> StdGen -> Double
 actualFalsePositiveRate bloomimpl policy n g0 =
     fromIntegral (countFalsePositives bloomimpl policy n g0)
   / fromIntegral n
 
-countFalsePositives :: forall bloom policy size. BloomImpl bloom policy size
+countFalsePositives :: forall bloom policy size.
+                       BloomImpl bloom policy size Int
                     -> policy -> Int -> StdGen -> Int
 countFalsePositives BloomImpl{..} policy n g0 =
     let (!g01, !g02) = splitGen g0
@@ -172,18 +221,30 @@ countFalsePositives BloomImpl{..} policy n g0 =
         where
           (!x, !g') = uniform g
 
-data BloomImpl bloom policy size = BloomImpl {
+writeGnuplotDataFile :: FilePath -> [String] -> IO ()
+writeGnuplotDataFile name datalines = do
+    withFile filename WriteMode $ \h -> do
+      hSetBuffering h LineBuffering --for incremental output
+      putStrLn ("Writing " ++ filename ++ " ...")
+      mapM_ (\l -> hPutStrLn h l >> putChar '.') datalines
+    putStrLn "Done"
+  where
+    filename = "plots/" ++ name ++ ".gnuplot.data"
+
+
+data BloomImpl bloom policy size a = BloomImpl {
        policyForBits :: B.BitsPerEntry -> policy,
        policyForFPR  :: B.FPR          -> policy,
        policyBits    :: policy -> B.BitsPerEntry,
        policyFPR     :: policy -> B.FPR,
        sizeForPolicy :: policy -> Int -> size,
-       unfold        :: forall a b. B.Hashable a
-                     => size -> B.Salt -> (b -> Maybe (a, b)) -> b -> bloom a,
-       elem          :: forall a. B.Hashable a => a -> bloom a -> Bool
+       unfold        :: forall b. size -> B.Salt -> (b -> Maybe (a, b)) -> b -> bloom a,
+       elem          :: a -> bloom a -> Bool
      }
 
-classicBloomImpl :: BloomImpl B.Classic.Bloom B.Classic.BloomPolicy B.Classic.BloomSize
+classicBloomImpl :: B.Hashable a
+                 => BloomImpl B.Classic.Bloom
+                              B.Classic.BloomPolicy B.Classic.BloomSize a
 classicBloomImpl =
     BloomImpl {
        policyForBits = B.Classic.policyForBits,
@@ -195,7 +256,9 @@ classicBloomImpl =
        elem          = B.Classic.elem
     }
 
-blockedBloomImpl :: BloomImpl B.Blocked.Bloom B.Blocked.BloomPolicy B.Blocked.BloomSize
+blockedBloomImpl :: B.Hashable a
+                 => BloomImpl B.Blocked.Bloom
+                              B.Blocked.BloomPolicy B.Blocked.BloomSize a
 blockedBloomImpl =
     BloomImpl {
        policyForBits = B.Blocked.policyForBits,
@@ -206,3 +269,43 @@ blockedBloomImpl =
        unfold        = B.Blocked.unfold,
        elem          = B.Blocked.elem
     }
+
+#ifdef ORIGINAL_BLOOMFILTER
+originalBloomImpl :: B.Original.Hashable a
+                  => BloomImpl B.Original.Bloom
+                               OriginalBloomPolicy OriginalBloomSize a
+originalBloomImpl =
+    BloomImpl {
+       policyForBits = OriginalBloomPolicyBits,
+       policyForFPR  = OriginalBloomPolicyFPR,
+       policyBits    = error "originalBloomImpl.policyBits",
+       policyFPR,
+       sizeForPolicy,
+       unfold,
+       elem          = B.Original.elem
+    }
+  where
+    policyFPR (OriginalBloomPolicyFPR fpr) = fpr
+    policyFPR (OriginalBloomPolicyBits bits) =
+        let hashes = fromIntegral (round (bits * log 2) :: Int)
+         in negate (expm1 (negate (hashes / bits))) ** hashes
+
+    sizeForPolicy (OriginalBloomPolicyFPR fpr) nelements =
+        let (bits, hashes) = B.Original.suggestSizing nelements fpr
+        in OriginalBloomSize bits hashes
+
+    sizeForPolicy (OriginalBloomPolicyBits bits) nelements =
+        let hashes = round (bits * log 2)
+        in OriginalBloomSize (ceiling (bits * fromIntegral nelements)) hashes
+
+    unfold (OriginalBloomSize bits hashes) _salt =
+        B.Original.unfold (B.Original.cheapHashes hashes) bits
+
+
+data OriginalBloomPolicy = OriginalBloomPolicyFPR  !B.BitsPerEntry
+                         | OriginalBloomPolicyBits !B.FPR
+  deriving stock Show
+
+data OriginalBloomSize   = OriginalBloomSize !Int !Int -- bits and hashes
+  deriving stock Show
+#endif
