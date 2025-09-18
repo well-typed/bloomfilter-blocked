@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               bloomfilter-blocked
-version:            0.1.0.0
+version:            0.1.0.1
 synopsis:           Fast, compact Bloom filters
 description:
   This library provides [Bloom filters](https://en.wikipedia.org/wiki/Bloom_filter).
@@ -72,7 +72,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/well-typed/bloomfilter-blocked
-  tag:      bloomfilter-blocked-0.1.0.0
+  tag:      bloomfilter-blocked-0.1.0.1
 
 common warnings
   ghc-options:
