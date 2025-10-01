@@ -90,6 +90,13 @@ common language
     RecordWildCards
     RoleAnnotations
 
+flag bench-vs-original-bloomfilter
+  description:
+    Include the original @bloomfilter@ package in the benchmark and fpr-calc.
+
+  default:     False
+  manual:      True
+
 library
   import:          language, warnings
   hs-source-dirs:  src
@@ -137,8 +144,14 @@ benchmark bench
   build-depends:
     , base
     , bloomfilter-blocked
+    , bytestring
     , criterion
+    , deepseq
     , random
+
+  if flag(bench-vs-original-bloomfilter)
+    build-depends: bloomfilter >=2.0 && <2.1
+    cpp-options:   -DORIGINAL_BLOOMFILTER
 
 -- It's not really a test suite, but if we make it an executable then its
 -- dependencies will be included for dependency resolution when building the
@@ -158,6 +171,23 @@ test-suite fpr-calc
     , regression-simple
 
   ghc-options:    -threaded -rtsopts
+
+  if flag(bench-vs-original-bloomfilter)
+    build-depends: bloomfilter >=2.0 && <2.1
+    cpp-options:   -DORIGINAL_BLOOMFILTER
+
+benchmark bench-plot
+  import:         language, warnings
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: bench
+  main-is:        bench-plot.hs
+  build-depends:
+    , aeson       >=2.0
+    , base        <5
+    , bytestring
+    , scientific
+    , text
+    , vector
 
 -- It's not really a test suite, but if we make it an executable then its
 -- dependencies will be included for dependency resolution when building the
