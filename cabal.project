@@ -1,12 +1,33 @@
 index-state:
   -- Bump this if you need newer packages from Hackage
-  -- current date: create cabal.project file
-  , hackage.haskell.org 2025-09-15T11:44:03Z
+  -- current date: support ghc-9.14
+  , hackage.haskell.org 2026-03-03T00:00:00Z
 
 packages: .
 
 tests: True
 benchmarks: True
 
--- regression-simple is used by the bloomfilter-fpr-calc test executable
-allow-newer: regression-simple:base
+-- TODO: remove once regression-simple is updated to support ghc-9.10 and up
+if impl(ghc > 9.10)
+  allow-newer:
+      regression-simple:base
+
+-- TODO: remove once these dependencies are updated to support ghc-9.14
+if impl(ghc >= 9.14)
+  allow-newer:
+      aeson:containers
+    , aeson:QuickCheck
+    , aeson:template-haskell
+    , aeson:time
+    , binary-orphans:base
+    , indexed-traversable:base
+    , indexed-traversable:containers
+    , indexed-traversable-instances:base
+    , microstache:base
+    , microstache:containers
+    , quickcheck-instances:base
+    , semialign:base
+    , semialign:containers
+    , these:base
+    , uuid-types:template-haskell

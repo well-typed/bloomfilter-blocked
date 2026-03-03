@@ -53,7 +53,7 @@ copyright:
 category:           Data
 build-type:         Simple
 tested-with:
-  GHC ==9.2 || ==9.4 || ==9.6 || ==9.8 || ==9.10 || ==9.12
+  GHC ==9.2 || ==9.4 || ==9.6 || ==9.8 || ==9.10 || ==9.12 || ==9.14
 
 extra-doc-files:
   CHANGELOG.md
@@ -94,7 +94,7 @@ library
   import:          language, warnings
   hs-source-dirs:  src
   build-depends:
-    , base                        >=4.16  && <4.22
+    , base                        >=4.16  && <4.23
     , bloomfilter-blocked:xxhash
     , bytestring                  ^>=0.11 || ^>=0.12
     , deepseq                     ^>=1.4  || ^>=1.5
