@@ -64,7 +64,7 @@ jobs:
 
     - name: 🛠️ Setup Haskell
       id: setup-haskell
-      uses:  haskell-actions/setup@v2
+      uses:  haskell-actions/setup@v2.11.0
       with:
         ghc-version: ${{ matrix.ghc-version }}
         cabal-version: ${{ matrix.cabal-version }}
@@ -162,7 +162,7 @@ jobs:
 
     - name: 🛠️ Setup Haskell
       id: setup-haskell
-      uses:  haskell-actions/setup@v2
+      uses:  haskell-actions/setup@v2.11.0
       with:
         ghc-version: "9.6"
         cabal-version: "3.16"
